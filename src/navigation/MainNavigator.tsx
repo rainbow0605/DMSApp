@@ -5,13 +5,31 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
 import OtpScreen from '../screens/OtpScreen';
+import Home from '../screens/Home';
 
-const Stack = createNativeStackNavigator();
+type RootStackParamList = {
+    Splash: undefined;
+    Login: undefined;
+    Otp: undefined;
+    Home: undefined;
+    SplashStack: undefined;
+    AuthStack: undefined;
+    HomeStack: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const hideHeader = { headerShown: false };
 
 const MainNavigator = () => {
 
+    const HomeStack = () => {
+        return (
+            <Stack.Navigator initialRouteName="Home" screenOptions={hideHeader}>
+                <Stack.Screen name={'Home'} component={Home} options={{ headerShown: false }} />
+            </Stack.Navigator>
+        );
+    };
     const AuthStack = () => {
         return (
             <Stack.Navigator initialRouteName="Login" screenOptions={hideHeader}>
@@ -34,6 +52,7 @@ const MainNavigator = () => {
             <Stack.Navigator>
                 <Stack.Screen name='SplashStack' component={SplashStack} options={hideHeader} />
                 <Stack.Screen name='AuthStack' component={AuthStack} options={hideHeader} />
+                <Stack.Screen name='HomeStack' component={HomeStack} options={hideHeader} />
             </Stack.Navigator>
         )
     }
