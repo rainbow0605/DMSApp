@@ -30,6 +30,7 @@ const MainNavigator = () => {
             </Stack.Navigator>
         );
     };
+  
     const AuthStack = () => {
         return (
             <Stack.Navigator initialRouteName="Login" screenOptions={hideHeader}>
