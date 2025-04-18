@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Easing } from 'react-native-reanimated';
+import { LocalStorage } from '../utils/LocalStorage';
 
 interface SplashScreenProps {
     navigation: {
@@ -33,8 +34,13 @@ const SplashScreen: React.FC<SplashScreenProps> = (props) => {
             }),
         ]).start();
 
-        const timeout = setTimeout(() => {
-            navigation.replace('AuthStack', { screen: 'Login' });
+        const timeout = setTimeout(async () => {
+            const token = await LocalStorage.getData('auth_token');
+            if (token) {
+                navigation.replace('HomeStack', { screen: 'Home' });
+            } else {
+                navigation.replace('AuthStack', { screen: 'Login' });
+            }
         }, 3000);
 
         return () => clearTimeout(timeout);

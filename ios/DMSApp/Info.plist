@@ -32,6 +32,27 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+
+	<key>NSCameraUsageDescription</key>
+	<string>We need access to your camera to take pictures.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>We need access to your photo library to choose pictures.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>We need access to your photo library to save pictures.</string>
+
+
+		<key>UIAppFonts</key>
+	<array>
+		<string>MaterialIcons.ttf</string>
+		<string>EvilIcons.ttf</string>
+		<string>MaterialCommunityIcons.ttf</string>
+		<string>Ionicons.ttf</string>
+		<string>Feather.ttf</string>
+		<string>Entypo.ttf</string>
+		<string>Octicons.ttf</string>
+	</array>
+
+
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
 	<key>UILaunchStoryboardName</key>

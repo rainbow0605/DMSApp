@@ -6,6 +6,9 @@ import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
 import OtpScreen from '../screens/OtpScreen';
 import Home from '../screens/Home';
+import FileUploadScreen from '../screens/FileUploadScreen';
+import FileSearchScreen from '../screens/FileSearchScreen';
+import FilePreviewScreen from '../screens/FilePreviewScreen';
 
 type RootStackParamList = {
     Splash: undefined;
@@ -15,6 +18,9 @@ type RootStackParamList = {
     SplashStack: undefined;
     AuthStack: undefined;
     HomeStack: undefined;
+    FileSearch: undefined;
+    FileUpload: undefined;
+    FilePreview: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -27,10 +33,13 @@ const MainNavigator = () => {
         return (
             <Stack.Navigator initialRouteName="Home" screenOptions={hideHeader}>
                 <Stack.Screen name={'Home'} component={Home} options={{ headerShown: false }} />
+                <Stack.Screen name={'FileUpload'} component={FileUploadScreen} options={{ headerShown: false }} />
+                <Stack.Screen name={'FileSearch'} component={FileSearchScreen} options={{ headerShown: false }} />
+                <Stack.Screen name={'FilePreview'} component={FilePreviewScreen} options={{ headerShown: false }} />
             </Stack.Navigator>
         );
     };
-  
+
     const AuthStack = () => {
         return (
             <Stack.Navigator initialRouteName="Login" screenOptions={hideHeader}>

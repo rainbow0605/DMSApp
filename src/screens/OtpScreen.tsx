@@ -2,8 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity, Animated, Dimensions, Keyboard } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Easing } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context'; // Import SafeAreaView
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
+import { LocalStorage } from '../utils/LocalStorage';
 
 const { width, height } = Dimensions.get('window');
 
@@ -75,6 +76,7 @@ const OtpScreen: React.FC<OtpScreenProps> = (props) => {
             if (otp === '123456') {
                 const token = 'dummy_auth_token';
                 console.log('Token stored:', token);
+                LocalStorage.storeData('auth_token', token);
                 Keyboard.dismiss();
                 navigation.replace('HomeStack', { screen: 'Home' });
             } else {
