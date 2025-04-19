@@ -9,11 +9,13 @@ import {
     Platform,
     Alert,
     ActivityIndicator,
+    PermissionsAndroid,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import DocumentPicker from '@react-native-documents/picker';
-import { launchCamera } from 'react-native-image-picker';
+import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
+import { LocalStorage } from '../utils/LocalStorage';
 
 const FileUploadScreen = ({ navigation }) => {
     const [documentDate, setDocumentDate] = useState(new Date());
@@ -26,9 +28,11 @@ const FileUploadScreen = ({ navigation }) => {
     const [remarks, setRemarks] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [documentTitle, setDocumentTitle] = useState('');
+
 
     const minorHeadOptions = {
-        Personal: ['John', 'Tom', 'Emily', 'Sarah', 'Mike'],
+        Personal: ['Hitesh', 'Rakesh', 'Abhishek', 'Tara', 'Heena'],
         Professional: ['Accounts', 'HR', 'IT', 'Finance', 'Marketing'],
     };
 
@@ -69,10 +73,15 @@ const FileUploadScreen = ({ navigation }) => {
     };
 
     const pickDocument = async () => {
+        console.log('Picking document...');
+
         try {
-            const result = await DocumentPicker.pick({
+            const result = await DocumentPicker.pickDirectory({
                 type: [DocumentPicker.types.images, DocumentPicker.types.pdf],
             });
+
+            console.log({ result });
+
 
             if (result && result.length > 0) {
                 setSelectedFile({
@@ -97,23 +106,49 @@ const FileUploadScreen = ({ navigation }) => {
         };
 
         try {
-            const result = await launchCamera(options);
 
-            if (result && !result.didCancel && !result.errorCode && result.assets && result.assets.length > 0) {
-                const photo = result.assets[0];
-                setSelectedFile({
-                    uri: photo.uri,
-                    type: photo.type,
-                    name: `photo_${Date.now()}.jpg`,
-                    size: photo.fileSize,
-                });
+
+            let granted = null;
+            if (Platform.OS === 'android') {
+                granted = await PermissionsAndroid.request(
+                    PermissionsAndroid.PERMISSIONS.CAMERA,
+                    {
+                        title: 'Document Management System Camera Permission',
+                        message: 'Document Management System needs access to your camera ',
+                        buttonNegative: 'Cancel',
+                        buttonPositive: 'OK',
+                    },
+                );
             }
+
+            if (
+                Platform.OS === 'ios' ||
+                granted === PermissionsAndroid.RESULTS.GRANTED
+            ) {
+                const result = await launchImageLibrary(options);
+                console.log({ result });
+
+                if (result && result.assets) {
+                    const photo = result.assets[0];
+                    setSelectedFile({
+                        uri: photo.uri,
+                        type: photo.type,
+                        name: `photo_${Date.now()}.jpg`,
+                        size: photo.fileSize,
+                    });
+                }
+            }
+
         } catch (error) {
             Alert.alert('Error', 'Failed to take photo');
         }
     };
 
     const handleUpload = async () => {
+        if (!documentTitle) {
+            Alert.alert('Error', 'Please enter a document title');
+            return;
+        }
         if (!selectedFile) {
             Alert.alert('Error', 'Please select a document or take a photo');
             return;
@@ -132,19 +167,31 @@ const FileUploadScreen = ({ navigation }) => {
         setLoading(true);
 
         try {
-            const formData = new FormData();
-            formData.append('file', {
-                uri: selectedFile.uri,
-                type: selectedFile.type,
-                name: selectedFile.name,
-            });
-            formData.append('date', documentDate.toISOString().split('T')[0]);
-            formData.append('major_head', majorHead);
-            formData.append('minor_head', minorHead);
-            formData.append('tags', JSON.stringify(tags));
-            formData.append('remarks', remarks);
-
             await new Promise(resolve => setTimeout(resolve, 1500));
+
+            const datatToSave = {
+                id: Date.now(),
+                title: documentTitle,
+                date: documentDate.toISOString().split('T')[0],
+                major_head: majorHead,
+                minor_head: minorHead,
+                tags: tags,
+                remarks: remarks,
+                file_name: selectedFile
+            };
+
+            const existingData = await LocalStorage.getData('documents_data');
+            let updatedData = [];
+
+            if (Array.isArray(existingData)) {
+                updatedData = [...existingData, datatToSave];
+            } else {
+                updatedData = [datatToSave];
+            }
+
+            await LocalStorage.storeData('documents_data', updatedData);
+
+            console.log(await LocalStorage.getData('documents_data'));
 
             setLoading(false);
             Alert.alert(
@@ -166,6 +213,7 @@ const FileUploadScreen = ({ navigation }) => {
         }
     };
 
+
     return (
         <ScrollView style={styles.container}>
             <View style={styles.header}>
@@ -176,82 +224,96 @@ const FileUploadScreen = ({ navigation }) => {
             </View>
 
             <View style={styles.formContainer}>
-                <Text style={styles.label}>Document Date</Text>
-                <TouchableOpacity
-                    style={styles.inputField}
-                    onPress={() => setDatePickerOpen(true)}
-                >
-                    <Text style={styles.inputText}>
-                        {documentDate.toLocaleDateString()}
-                    </Text>
-                    <Icon name="calendar-today" size={20} color="#757575" />
-                </TouchableOpacity>
-                <DatePicker
-                    modal
-                    open={datePickerOpen}
-                    date={documentDate}
-                    mode="date"
-                    onConfirm={(date) => {
-                        setDatePickerOpen(false);
-                        setDocumentDate(date);
-                    }}
-                    onCancel={() => {
-                        setDatePickerOpen(false);
-                    }}
-                />
 
-                {/* Category */}
-                <Text style={styles.label}>Category</Text>
-                <View style={styles.segmentedControl}>
+                <View style={{ paddingHorizontal: 28 }}>
+                    <Text style={styles.label}>Document Title *</Text>
+                    <TextInput
+                        style={styles.inputField}
+                        placeholder="Enter document title"
+                        value={documentTitle}
+                        onChangeText={(text) => setDocumentTitle(text)}
+                        placeholderTextColor={'#757575'}
+                    />
+                </View>
+                <View style={{ paddingHorizontal: 28 }}>
+                    <Text style={styles.label}>Document Date</Text>
                     <TouchableOpacity
-                        style={[
-                            styles.segmentButton,
-                            majorHead === 'Personal' && styles.segmentButtonActive,
-                        ]}
-                        onPress={() => handleMajorHeadChange('Personal')}
+                        style={styles.inputField}
+                        onPress={() => setDatePickerOpen(true)}
                     >
-                        <Text
-                            style={[
-                                styles.segmentButtonText,
-                                majorHead === 'Personal' && styles.segmentButtonTextActive,
-                            ]}
-                        >
-                            Personal
+                        <Text style={styles.inputText}>
+                            {documentDate.toLocaleDateString()}
                         </Text>
+                        <Icon name="calendar-today" size={20} color="#757575" />
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[
-                            styles.segmentButton,
-                            majorHead === 'Professional' && styles.segmentButtonActive,
-                        ]}
-                        onPress={() => handleMajorHeadChange('Professional')}
-                    >
-                        <Text
-                            style={[
-                                styles.segmentButtonText,
-                                majorHead === 'Professional' && styles.segmentButtonTextActive,
-                            ]}
-                        >
-                            Professional
-                        </Text>
-                    </TouchableOpacity>
+                    <DatePicker
+                        modal
+                        open={datePickerOpen}
+                        date={documentDate}
+                        mode="date"
+                        onConfirm={(date) => {
+                            setDatePickerOpen(false);
+                            setDocumentDate(date);
+                        }}
+                        onCancel={() => {
+                            setDatePickerOpen(false);
+                        }}
+                    />
                 </View>
 
-                {/* Subcategory */}
+                <View style={{ paddingHorizontal: 28 }}>
+                    <Text style={[styles.label, {}]}>Category*</Text>
+                    <View style={styles.segmentedControl}>
+                        <TouchableOpacity
+                            style={[
+                                styles.segmentButton,
+                                majorHead === 'Personal' && styles.segmentButtonActive,
+                            ]}
+                            onPress={() => handleMajorHeadChange('Personal')}
+                        >
+                            <Text
+                                style={[
+                                    styles.segmentButtonText,
+                                    majorHead === 'Personal' && styles.segmentButtonTextActive,
+                                ]}
+                            >
+                                Personal
+                            </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[
+                                styles.segmentButton,
+                                majorHead === 'Professional' && styles.segmentButtonActive,
+                            ]}
+                            onPress={() => handleMajorHeadChange('Professional')}
+                        >
+                            <Text
+                                style={[
+                                    styles.segmentButtonText,
+                                    majorHead === 'Professional' && styles.segmentButtonTextActive,
+                                ]}
+                            >
+                                Professional
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+
                 {majorHead && (
-                    <>
-                        <Text style={styles.label}>Subcategory</Text>
+                    <View style={{}}>
+                        <Text style={[styles.label, { paddingHorizontal: 28 }]}>Subcategory*</Text>
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            style={styles.chipsContainer}
+                            style={[styles.chipsContainer, {}]}
                         >
-                            {minorHeadOptions[majorHead].map((option) => (
+                            {minorHeadOptions[majorHead].map((option, index) => (
                                 <TouchableOpacity
                                     key={option}
                                     style={[
                                         styles.chip,
                                         minorHead === option && styles.chipActive,
+                                        { marginLeft: index === 0 ? 28 : 5 },
                                     ]}
                                     onPress={() => setMinorHead(option)}
                                 >
@@ -266,33 +328,35 @@ const FileUploadScreen = ({ navigation }) => {
                                 </TouchableOpacity>
                             ))}
                         </ScrollView>
-                    </>
+                    </View>
                 )}
 
-                {/* Tags */}
-                <Text style={styles.label}>Tags</Text>
-                <View style={styles.inputWithButton}>
-                    <TextInput
-                        style={styles.inputText}
-                        placeholder="Add tags"
-                        value={currentTag}
-                        onChangeText={setCurrentTag}
-                        onSubmitEditing={handleAddTag}
-                        returnKeyType="done"
-                    />
-                    <TouchableOpacity style={styles.addButton} onPress={handleAddTag}>
-                        <Icon name="add" size={20} color="#fff" />
-                    </TouchableOpacity>
+                <View style={{ paddingHorizontal: 28 }}>
+                    <Text style={styles.label}>Tags</Text>
+                    <View style={styles.inputWithButton}>
+                        <TextInput
+                            style={[styles.inputText, styles.tagInput]}
+                            placeholder="Add tags"
+                            value={currentTag}
+                            onChangeText={setCurrentTag}
+                            onSubmitEditing={handleAddTag}
+                            returnKeyType="done"
+                            placeholderTextColor={'#999'}
+                        />
+                        <TouchableOpacity style={styles.addButton} onPress={handleAddTag}>
+                            <Icon name="add" size={20} color="#fff" />
+                        </TouchableOpacity>
+                    </View>
                 </View>
                 <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     style={styles.suggestionsContainer}
                 >
-                    {availableTags.map((tag) => (
+                    {availableTags.map((tag, index) => (
                         <TouchableOpacity
                             key={tag.id}
-                            style={styles.suggestionChip}
+                            style={[styles.suggestionChip, { marginLeft: index === 0 ? 28 : 5 }]}
                             onPress={() => {
                                 if (!tags.includes(tag.name)) {
                                     setTags([...tags, tag.name]);
@@ -303,9 +367,9 @@ const FileUploadScreen = ({ navigation }) => {
                         </TouchableOpacity>
                     ))}
                 </ScrollView>
-                <View style={styles.selectedChipsContainer}>
+                <View style={[styles.selectedChipsContainer, { paddingHorizontal: 28 }]}>
                     {tags.map((tag, index) => (
-                        <View key={index} style={styles.selectedChip}>
+                        <View key={index} style={[styles.selectedChip, {}]}>
                             <Text style={styles.selectedChipText}>{tag}</Text>
                             <TouchableOpacity onPress={() => handleRemoveTag(tag)}>
                                 <Icon name="close" size={16} color="#fff" />
@@ -314,60 +378,63 @@ const FileUploadScreen = ({ navigation }) => {
                     ))}
                 </View>
 
-                {/* Remarks */}
-                <Text style={styles.label}>Remarks</Text>
-                <TextInput
-                    style={[styles.inputText, styles.multilineInput]}
-                    placeholder="Add any additional notes"
-                    value={remarks}
-                    onChangeText={setRemarks}
-                    multiline
-                    textAlignVertical="top"
-                />
-
-                {/* File Selection */}
-                <Text style={styles.label}>Document</Text>
-                <View style={styles.fileActions}>
-                    <TouchableOpacity style={styles.actionButton} onPress={pickDocument}>
-                        <Icon name="attach-file" size={20} color="#fff" />
-                        <Text style={styles.actionButtonText}>Choose File</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton} onPress={takePhoto}>
-                        <Icon name="camera-alt" size={20} color="#fff" />
-                        <Text style={styles.actionButtonText}>Take Photo</Text>
-                    </TouchableOpacity>
+                <View style={{ paddingHorizontal: 28 }}>
+                    <Text style={styles.label}>Remarks</Text>
+                    <TextInput
+                        style={[styles.inputText, styles.multilineInput, { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, paddingHorizontal: 10 }]}
+                        placeholder="Add any additional notes"
+                        value={remarks}
+                        onChangeText={setRemarks}
+                        multiline
+                        textAlignVertical="top"
+                        placeholderTextColor={'#999'}
+                    />
                 </View>
-                {selectedFile && (
-                    <View style={styles.selectedFile}>
-                        <Icon
-                            name={selectedFile.type === 'application/pdf' ? 'picture-as-pdf' : 'image'}
-                            size={24}
-                            color="#007bff"
-                        />
-                        <Text style={styles.selectedFileName} numberOfLines={1}>
-                            {selectedFile.name}
-                        </Text>
-                        <TouchableOpacity onPress={() => setSelectedFile(null)}>
-                            <Icon name="close" size={20} color="#dc3545" />
+
+                <View style={{ paddingHorizontal: 28 }}>
+                    <Text style={styles.label}>Document</Text>
+                    <View style={styles.fileActions}>
+                        <TouchableOpacity style={styles.actionButton} onPress={takePhoto}>
+                            <Icon name="camera-alt" size={20} color="#fff" />
+                            <Text style={styles.actionButtonText}>Choose Photo</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.actionButton} onPress={pickDocument}>
+                            <Icon name="attach-file" size={20} color="#fff" />
+                            <Text style={styles.actionButtonText}>Choose File</Text>
                         </TouchableOpacity>
                     </View>
-                )}
 
-                {/* Upload Button */}
-                <TouchableOpacity
-                    style={styles.uploadButton}
-                    onPress={handleUpload}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <>
-                            <Icon name="cloud-upload" size={20} color="#fff" />
-                            <Text style={styles.uploadButtonText}>Upload</Text>
-                        </>
+                    {selectedFile && (
+                        <View style={styles.selectedFile}>
+                            <Icon
+                                name={selectedFile.type === 'application/pdf' ? 'picture-as-pdf' : 'image'}
+                                size={24}
+                                color="#007bff"
+                            />
+                            <Text style={styles.selectedFileName} numberOfLines={1}>
+                                {selectedFile.name}
+                            </Text>
+                            <TouchableOpacity onPress={() => setSelectedFile(null)}>
+                                <Icon name="close" size={20} color="#dc3545" />
+                            </TouchableOpacity>
+                        </View>
                     )}
-                </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.uploadButton}
+                        onPress={handleUpload}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#fff" />
+                        ) : (
+                            <>
+                                <Icon name="cloud-upload" size={20} color="#fff" />
+                                <Text style={styles.uploadButtonText}>Upload</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
             </View>
         </ScrollView>
     );
@@ -376,13 +443,13 @@ const FileUploadScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f8f9fa',
+        backgroundColor: '#fff',
     },
     header: {
-        backgroundColor: '#007bff',
+        backgroundColor: '#6a1b9a',
         paddingTop: Platform.OS === 'ios' ? 50 : 20,
         paddingBottom: 15,
-        paddingHorizontal: 20,
+        paddingHorizontal: 24,
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -395,7 +462,7 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
     },
     formContainer: {
-        padding: 20,
+        paddingVertical: 20,
     },
     label: {
         fontSize: 16,
@@ -556,7 +623,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#28a745',
+        backgroundColor: '#6a1b9a',
         borderRadius: 5,
         paddingVertical: 12,
         marginTop: 20,
@@ -567,6 +634,17 @@ const styles = StyleSheet.create({
         marginLeft: 8,
         fontSize: 18,
     },
+    tagInput: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: '#ced4da',
+        borderRadius: 5,
+        paddingHorizontal: 15,
+        width: '85%'
+    }
 });
 
 export default FileUploadScreen;

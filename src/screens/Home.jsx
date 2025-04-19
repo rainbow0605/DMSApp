@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     StyleSheet,
     View,
@@ -7,12 +7,38 @@ import {
     ScrollView,
     Alert,
     Platform,
+    StatusBar,
+    Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../contexts/AuthContext';
+import { LocalStorage } from '../utils/LocalStorage';
+import { useIsFocused } from '@react-navigation/native';
 
 const HomeScreen = ({ navigation }) => {
-    const { logout } = React.useContext(AuthContext);
+    const isFocused = useIsFocused();
+    const { logout } = useContext(AuthContext);
+    const [userName, setUserName] = useState('');
+    const [documents, setDocuments] = useState();
+
+
+    useEffect(() => {
+        const fetchUser = async () => {
+            const name = await LocalStorage.getData('user_name');
+            if (name) setUserName(name);
+        };
+        fetchUser();
+        getDocuments();
+    }, [isFocused]);
+
+    const getDocuments = async () => {
+        try {
+            const d_data = await LocalStorage.getData('documents_data');
+            setDocuments(d_data[d_data?.length - 1]);
+        } catch (error) {
+            console.log(error);
+        }
+    }
 
     const handleLogout = () => {
         Alert.alert(
@@ -26,6 +52,7 @@ const HomeScreen = ({ navigation }) => {
                 {
                     text: 'Logout',
                     onPress: async () => {
+                        LocalStorage.clearAllData();
                         await logout();
                         navigation.replace('AuthStack', { screen: 'Login' });
                     },
@@ -52,38 +79,53 @@ const HomeScreen = ({ navigation }) => {
 
     return (
         <ScrollView style={styles.container}>
+            <StatusBar backgroundColor={'#6a1b9a'} barStyle={'light-content'} />
+
             <View style={styles.header}>
-                <Text style={styles.headerTitle}>Document Hub</Text>
+                <Text style={styles.headerTitle}>DMS App</Text>
                 <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
                     <Icon name="logout" size={24} color={Platform.OS === 'ios' ? '#fff' : '#fff'} />
                 </TouchableOpacity>
             </View>
 
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            <View style={styles.featuresContainer}>
-                {features.map((feature, index) => (
-                    <TouchableOpacity
-                        key={index}
-                        style={[styles.featureCard, { backgroundColor: feature.color }]}
-                        onPress={() => navigation.navigate(feature.screen)}
-                        activeOpacity={0.8}
-                    >
-                        <View style={styles.featureIconContainer}>
-                            <Icon name={feature.icon} size={36} color="#fff" />
-                        </View>
-                        <Text style={styles.featureText}>{feature.name}</Text>
-                    </TouchableOpacity>
-                ))}
-            </View>
+            <View style={{ paddingHorizontal: 28 }}>
+                <Text style={styles.welcomeText}>👋 Welcome back, {userName || 'User'}!</Text>
 
-            <View style={styles.recentContainer}>
-                <Text style={styles.sectionTitle}>Recent Activity</Text>
-                <View style={styles.activityCard}>
-                    <Text style={styles.activityTitle}>Welcome to your Document Hub!</Text>
-                    <Text style={styles.activityDescription}>
-                        Get started by uploading your documents or searching for existing ones. Your recent activities will appear here.
-                    </Text>
-                    <Text style={styles.activityTimestamp}>Today, 11:39 AM</Text>
+                <Text style={styles.tipText}>💡 Tip of the day: You can search by file name or tag!</Text>
+
+                <Text style={styles.sectionTitle}>Quick Actions</Text>
+                <View style={styles.featuresContainer}>
+                    {features.map((feature, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={[styles.featureCard, { backgroundColor: feature.color }]}
+                            onPress={() => navigation.navigate(feature.screen)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={styles.featureIconContainer}>
+                                <Icon name={feature.icon} size={36} color="#fff" />
+                            </View>
+                            <Text style={styles.featureText}>{feature.name}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+
+
+                <View style={styles.recentContainer}>
+                    <Text style={styles.sectionTitle}>Recent Activity</Text>
+                    {
+                        documents ?
+                            <View style={styles.activityCard}>
+                                <Text style={styles.activityTitle}>Uploaded: {documents?.title}</Text>
+                                <Text style={styles.activityDescription}>You uploaded this file to HR folder.</Text>
+                                <Text style={styles.activityTimestamp}>2 hours ago</Text>
+                            </View>
+                            :
+                            <View style={{}}>
+                                <Text style={{ textAlign: 'left', color: '#3F51B5' }}>No recent activity</Text>
+                                <Text style={{ textAlign: 'left', marginTop: 10, color: '#3F51B5' }}>You can upload documents to see them here</Text>
+                            </View>
+                    }
                 </View>
             </View>
         </ScrollView>
@@ -93,13 +135,13 @@ const HomeScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f4f6f8', // Light grey background
+        backgroundColor: '#fff',
     },
     header: {
-        backgroundColor: Platform.OS === 'ios' ? '#304FFE' : '#3F51B5',
-        paddingTop: Platform.OS === 'ios' ? 50 : 30,
+        backgroundColor: '#6a1b9a',
+        paddingTop: Platform.OS === 'ios' ? 50 : 10,
         paddingBottom: 15,
-        paddingHorizontal: 20,
+        paddingHorizontal: 28,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -108,6 +150,12 @@ const styles = StyleSheet.create({
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
+    },
+    logo: {
+        width: 100,
+        height: 40,
+        resizeMode: 'contain',
+        marginBottom: 10,
     },
     headerTitle: {
         color: '#fff',
@@ -118,19 +166,32 @@ const styles = StyleSheet.create({
         padding: 8,
         borderRadius: 5,
     },
+    welcomeText: {
+        fontSize: 20,
+        fontWeight: '600',
+        marginTop: 20,
+        marginBottom: 10,
+        color: '#37474F',
+    },
+    tipText: {
+        backgroundColor: '#FFF3CD',
+        padding: 12,
+        borderRadius: 8,
+        color: '#856404',
+        fontSize: 14,
+        marginBottom: 16,
+    },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '600',
         color: '#263238',
-        marginHorizontal: 20,
         marginTop: 25,
         marginBottom: 15,
     },
     featuresContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'space-between',
         flexWrap: 'wrap',
-        paddingHorizontal: 15,
         paddingBottom: 15,
     },
     featureCard: {
@@ -168,13 +229,9 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderRadius: 12,
         padding: 18,
-        marginHorizontal: 20,
         marginBottom: 15,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.08,
-        shadowRadius: 2,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
     },
     activityTitle: {
         fontWeight: 'bold',
@@ -190,6 +247,21 @@ const styles = StyleSheet.create({
     activityTimestamp: {
         color: '#90A4AE',
         fontSize: 12,
+    },
+    myFilesButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#1E88E5',
+        padding: 12,
+        borderRadius: 8,
+        marginTop: 20,
+        alignSelf: 'flex-start',
+    },
+    myFilesButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        marginLeft: 8,
+        fontWeight: '500',
     },
 });
 

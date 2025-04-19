@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Dimensions, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, StyleSheet, Animated, Dimensions, StatusBar } from 'react-native';
 import { Easing } from 'react-native-reanimated';
 import { LocalStorage } from '../utils/LocalStorage';
 
@@ -48,9 +47,10 @@ const SplashScreen: React.FC<SplashScreenProps> = (props) => {
 
     return (
         <View style={styles.container}>
+            <StatusBar backgroundColor={'6a1b9a'} barStyle={'light-content'} />
             <Animated.View style={{ alignItems: 'center', transform: [{ scale }] }}>
                 <Animated.Text style={[styles.text, { opacity }]}>
-                    Document Management System
+                    DMS App
                 </Animated.Text>
             </Animated.View>
         </View>

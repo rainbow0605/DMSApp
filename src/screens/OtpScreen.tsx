@@ -77,6 +77,7 @@ const OtpScreen: React.FC<OtpScreenProps> = (props) => {
                 const token = 'dummy_auth_token';
                 console.log('Token stored:', token);
                 LocalStorage.storeData('auth_token', token);
+                LocalStorage.storeData('user_name', mobileNumber);
                 Keyboard.dismiss();
                 navigation.replace('HomeStack', { screen: 'Home' });
             } else {

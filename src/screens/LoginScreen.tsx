@@ -46,6 +46,20 @@ const LoginScreen: React.FC<{ navigation: { navigate: (screen: string, params?: 
         }
 
         try {
+
+            // const result = await fetch('https://apis.allsoft.co/api/documentManagement//generateOTP', {
+            //     method: 'POST',
+            //     body: JSON.stringify({ mobile_number: mobileNumber }),
+            //     headers: {
+            //         'Content-Type': 'application/json'
+            //     }
+            // })
+            // const response = await result.json();
+            // const {status,data} = response;
+            // if(status){
+            //     navigation.navigate('Otp', { mobileNumber });
+            // }
+
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             console.log('Sending OTP to:', mobileNumber);
