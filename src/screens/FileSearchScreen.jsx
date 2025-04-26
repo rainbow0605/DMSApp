@@ -313,7 +313,6 @@ const FileSearchScreen = ({ navigation }) => {
                         ))}
                     </View>
 
-                    {/* Date Range */}
                     <View style={styles.dateRangeContainer}>
                         <View style={styles.datePickerWrapper}>
                             <Text style={styles.label}>From Date</Text>

@@ -592,7 +592,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#6c757d', // Secondary grey
+        backgroundColor: '#6c757d',
         borderRadius: 5,
         paddingVertical: 10,
         flex: 0.48,

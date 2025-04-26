@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Animated, Dimensions, Keyboard } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Animated, Dimensions, Keyboard, ToastAndroid } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Easing } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
 import { LocalStorage } from '../utils/LocalStorage';
+import { authService } from '../services/authService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -69,20 +70,18 @@ const OtpScreen: React.FC<OtpScreenProps> = (props) => {
             setIsVerifying(false);
             return;
         }
-
         try {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            if (otp === '123456') {
-                const token = 'dummy_auth_token';
-                console.log('Token stored:', token);
-                LocalStorage.storeData('auth_token', token);
-                LocalStorage.storeData('user_name', mobileNumber);
+            const result = await authService.verifyOTP(mobileNumber, otp);
+            const { status, data } = result;
+            if (status) {
+                LocalStorage.storeData('user_data', data);
                 Keyboard.dismiss();
                 navigation.replace('HomeStack', { screen: 'Home' });
+                ToastAndroid.show('OTP verified successfully', ToastAndroid.SHORT);
             } else {
                 setError('Invalid OTP. Please try again.');
                 setIsVerifying(false);
+                ToastAndroid.show('OTP verification failed', ToastAndroid.SHORT);
             }
         } catch (err: any) {
             setError(`Error verifying OTP: ${err.message || 'An error occurred'}`);

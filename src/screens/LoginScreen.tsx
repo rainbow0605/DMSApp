@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Animated, Dimensions, Keyboard } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Animated, Dimensions, Keyboard, ToastAndroid } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Easing } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Platform } from 'react-native';
+import { authService } from '../services/authService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -46,27 +47,16 @@ const LoginScreen: React.FC<{ navigation: { navigate: (screen: string, params?: 
         }
 
         try {
-
-            // const result = await fetch('https://apis.allsoft.co/api/documentManagement//generateOTP', {
-            //     method: 'POST',
-            //     body: JSON.stringify({ mobile_number: mobileNumber }),
-            //     headers: {
-            //         'Content-Type': 'application/json'
-            //     }
-            // })
-            // const response = await result.json();
-            // const {status,data} = response;
-            // if(status){
-            //     navigation.navigate('Otp', { mobileNumber });
-            // }
-
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            console.log('Sending OTP to:', mobileNumber);
-            Keyboard.dismiss();
-            navigation.navigate('Otp', { mobileNumber });
-            setIsSendingOtp(false);
-
+            const result = await authService.requestOTP(mobileNumber);
+            const { status, data } = result;
+            if (status) {
+                Keyboard.dismiss();
+                navigation.navigate('Otp', { mobileNumber });
+                setIsSendingOtp(false);
+                ToastAndroid.show(data || 'OTP sent successfully', ToastAndroid.SHORT);
+            } else {
+                ToastAndroid.show(data || 'Error sending OTP', ToastAndroid.SHORT);
+            }
         } catch (err: any) {
             setError(`Error sending OTP: ${err.message || 'An error occurred'}`);
             setIsSendingOtp(false);

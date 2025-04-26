@@ -1,34 +1,49 @@
 import axios from 'axios';
 
-const API_URL = 'https://api.example.com';
+const API_URL = 'https://apis.allsoft.co/api/documentManagement';
 
 export const authService = {
     requestOTP: async (mobileNumber) => {
-        try {
-            console.log(`Requesting OTP for ${mobileNumber}`);
+        return new Promise(async (resolve, reject) => {
+            try {
 
-            return {
-                success: true,
-                message: 'OTP sent successfully'
-            };
-        } catch (error) {
-            console.error('Error requesting OTP:', error);
-            throw error;
-        }
+                let fetchParameter = {
+                    method: 'POST',
+                    body: JSON.stringify({ mobile_number: mobileNumber }),
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                }
+                let serverResponse = await fetch(API_URL + `/generateOTP`, fetchParameter);
+                let response = await serverResponse.json();
+                resolve(response);
+            }
+            catch (error) {
+                reject(error);
+            }
+        })
     },
 
     verifyOTP: async (mobileNumber, otp) => {
-        try {
-            console.log(`Verifying OTP ${otp} for ${mobileNumber}`);
+        return new Promise(async (resolve, reject) => {
+            try {
 
-            return {
-                success: true,
-                token: 'mock-jwt-token-12345',
-                message: 'OTP verified successfully'
-            };
-        } catch (error) {
-            console.error('Error verifying OTP:', error);
-            throw error;
-        }
-    }
+                let fetchParameter = {
+                    method: 'POST',
+                    body: JSON.stringify({ mobile_number: mobileNumber, otp: otp }),
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                }
+                let serverResponse = await fetch(API_URL + `/validateOTP`, fetchParameter);
+                let response = await serverResponse.json();
+                resolve(response);
+            }
+            catch (error) {
+                reject(error);
+            }
+        })
+    },
 };
