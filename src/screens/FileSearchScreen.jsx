@@ -9,13 +9,14 @@ import {
     FlatList,
     ActivityIndicator,
     Alert,
+    Platform,
+    ToastAndroid,
+    Linking,
 } from 'react-native';
 import DatePicker from 'react-native-date-picker';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { documentService } from '../services/documentService';
 import { LocalStorage } from '../utils/LocalStorage';
-
-
 
 const FileSearchScreen = ({ navigation }) => {
     const [majorHead, setMajorHead] = useState('');
@@ -30,25 +31,105 @@ const FileSearchScreen = ({ navigation }) => {
     const [searchResults, setSearchResults] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedDocuments, setSelectedDocuments] = useState([]);
+    const [page, setPage] = useState(0);
+    const [pageSize, setPageSize] = useState(10);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [searchText, setSearchText] = useState('');
 
     const minorHeadOptions = {
-        Personal: ['John', 'Tom', 'Emily', 'Sarah', 'Mike'],
+        Personal: ['John', 'Emily', 'Tom', 'Roy', 'Heena'],
         Professional: ['Accounts', 'HR', 'IT', 'Finance', 'Marketing'],
+        Company: ['Work Order', 'Contract', 'Invoice', 'Receipt']
     };
 
     useEffect(() => {
-        getAllTheDocuments();
-        const fetchTags = async () => {
-            try {
-                const tags = await documentService.getTags();
-                setAvailableTags(tags);
-            } catch (error) {
-                console.error('Failed to fetch tags:', error);
+        fetchInitialDocuments();
+        fetchTags();
+    }, []);
+
+    const fetchTags = async () => {
+        try {
+            const result = await documentService.getTags();
+            const { status, data } = result;
+            if (status) {
+                const fetchedTags = data?.map(tag => ({ id: tag?.id, name: tag?.label }));
+                setAvailableTags(fetchedTags);
+            } else {
+                if (Platform.OS === 'android') {
+                    ToastAndroid.show('Error fetching tags', ToastAndroid.SHORT);
+                } else {
+                    Alert.alert('Error', 'Failed to fetch tags');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to fetch tags:', error);
+        }
+    };
+
+    const fetchInitialDocuments = async () => {
+        setLoading(true);
+        try {
+            const response = await fetchDocuments(0);
+            if (response.status) {
+                // const filteredData = response.data.filter(doc => doc.filterId === 'test_hitesh');
+                // console.log({ filteredData });
+
+                setSearchResults(response.data);
+                setTotalRecords(response.recordsTotal);
+            }
+        } catch (error) {
+            console.error('Error fetching initial documents:', error);
+            Alert.alert('Error', 'Failed to fetch documents');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchDocuments = async (start = 0) => {
+        const userData = await LocalStorage.getData('user_data');
+        const userId = userData?.user_id || userData?.user_name || '';
+
+        const formattedFromDate = fromDate ? formatDate(fromDate) : '';
+        const formattedToDate = toDate ? formatDate(toDate) : '';
+
+        const formattedTags = tags.map(tag => ({ tag_name: tag }));
+
+        const tagsToSend = formattedTags.length > 0
+            ? formattedTags
+            : [{ tag_name: '' }, { tag_name: '' }];
+
+        const requestData = {
+            major_head: majorHead || '',
+            minor_head: minorHead || '',
+            from_date: formattedFromDate,
+            to_date: formattedToDate,
+            tags: tagsToSend,
+            uploaded_by: userId,
+            start: start,
+            length: pageSize,
+            filterId: userId,
+            search: {
+                value: searchText
             }
         };
 
-        fetchTags();
-    }, []);
+        try {
+            const result = await documentService.searchDocuments(requestData);
+            return result;
+        } catch (error) {
+            console.error('API call error:', error);
+            throw error;
+        }
+    };
+
+    const formatDate = (date) => {
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     const handleMajorHeadChange = (value) => {
         setMajorHead(value);
@@ -65,73 +146,61 @@ const FileSearchScreen = ({ navigation }) => {
     const handleRemoveTag = (tagToRemove) => {
         setTags(tags.filter(tag => tag !== tagToRemove));
     };
-
-    const getAllTheDocuments = async () => {
-        try {
-            const result = await LocalStorage.getData('documents_data');
-            console.log({ result });
-
-            setSearchResults(result);
-        } catch (error) {
-            console.log(error);
-        }
-    }
-
     const handleSearch = async () => {
         setLoading(true);
+        setPage(0);
         try {
-            const allDocuments = await LocalStorage.getData('documents_data');
-
-            const filteredDocuments = allDocuments.filter(doc => {
-                const docDate = new Date(doc.date);
-
-                const isMajorMatch = majorHead ? doc.major_head === majorHead : true;
-                const isMinorMatch = minorHead ? doc.minor_head === minorHead : true;
-
-                const isTagMatch =
-                    tags?.length > 0
-                        ? tags.every(tag => doc.tags.includes(tag))
-                        : true;
-
-                const isDateInRange =
-                    (!fromDate || docDate >= fromDate) &&
-                    (!toDate || docDate <= toDate);
-
-                return isMajorMatch && isMinorMatch && isTagMatch && isDateInRange;
-            });
-
-            setSearchResults(filteredDocuments);
-            setSelectedDocuments([]);
+            const result = await fetchDocuments(0);
+            if (result.status) {
+                setSearchResults(result.data);
+                setTotalRecords(result.recordsTotal);
+                setSelectedDocuments([]);
+            } else {
+                Alert.alert('Error', 'Failed to search documents');
+            }
         } catch (error) {
+            console.error('Search error:', error);
             Alert.alert('Error', 'Failed to search documents');
         } finally {
             setLoading(false);
         }
     };
 
+    const handleLoadMore = async () => {
+        if (loadingMore || searchResults.length >= totalRecords) return;
+
+        setLoadingMore(true);
+        const nextPage = page + 1;
+        const start = nextPage * pageSize;
+
+        try {
+            const result = await fetchDocuments(start);
+            if (result.status) {
+                setSearchResults([...searchResults, ...result.data]);
+                setPage(nextPage);
+            }
+        } catch (error) {
+            console.error('Load more error:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    };
+
     const handleClearFilters = async () => {
-        setMajorHead(null);
-        setMinorHead(null);
+        setMajorHead('');
+        setMinorHead('');
         setTags([]);
         setFromDate(null);
         setToDate(null);
         setSelectedDocuments([]);
-        // setLoading(true);
+        setPage(0);
+        setSearchText('');
 
-        try {
-            const allDocuments = await LocalStorage.getData('documents_data');
-            setSearchResults(allDocuments);
-        } catch (error) {
-            Alert.alert('Error', 'Failed to reset documents');
-        } finally {
-            setLoading(false);
-        }
+        fetchInitialDocuments();
     };
 
-
-
     const toggleDocumentSelection = (documentId) => {
-        if (selectedDocuments?.includes(documentId)) {
+        if (selectedDocuments.includes(documentId)) {
             setSelectedDocuments(selectedDocuments.filter(id => id !== documentId));
         } else {
             setSelectedDocuments([...selectedDocuments, documentId]);
@@ -140,17 +209,18 @@ const FileSearchScreen = ({ navigation }) => {
 
     const handlePreviewDocument = (document) => {
         navigation.navigate('FilePreview', { document });
+        // Linking.openURL(document?.file_url);
     };
 
     const handleDownloadSelected = () => {
-        if (selectedDocuments?.length === 0) {
+        if (selectedDocuments.length === 0) {
             Alert.alert('Info', 'Please select at least one document to download');
             return;
         }
 
         Alert.alert(
             'Download Files',
-            `Download ${selectedDocuments?.length} selected document(s)?`,
+            `Download ${selectedDocuments.length} selected document(s)?`,
             [
                 {
                     text: 'Cancel',
@@ -170,33 +240,46 @@ const FileSearchScreen = ({ navigation }) => {
         );
     };
 
+    const renderFooter = () => {
+        if (!loadingMore) return null;
+
+        return (
+            <View style={styles.loaderFooter}>
+                <ActivityIndicator size="small" color="#3498db" />
+                <Text style={styles.loadingMoreText}>Loading more documents...</Text>
+            </View>
+        );
+    };
+
     const renderDocumentItem = ({ item }) => (
         <View style={styles.card}>
             <TouchableOpacity
                 style={styles.checkbox}
-                onPress={() => toggleDocumentSelection(item.id)}
+                onPress={() => toggleDocumentSelection(item.document_id)}
             >
                 <Icon
-                    name={selectedDocuments.includes(item.id) ? 'check-box' : 'check-box-outline-blank'}
+                    name={selectedDocuments.includes(item.document_id) ? 'check-box' : 'check-box-outline-blank'}
                     size={24}
                     color="#2c3e50"
                 />
             </TouchableOpacity>
 
             <View style={styles.info}>
-                <Text style={styles.date}>📝 {item?.title}</Text>
-                <Text style={[styles.date, { marginTop: 5 }]}>📅 {item.date}</Text>
+                <Text style={styles.date}>📝 Document #{item.document_id}</Text>
+                <Text style={[styles.date, { marginTop: 5 }]}>📅 {new Date(item.document_date).toLocaleDateString()}</Text>
                 <Text style={[styles.category, { marginTop: 5 }]}>
                     🗂️ {item.major_head} → {item.minor_head}
                 </Text>
 
-                <View style={[styles.tagsContainer, { marginTop: 5 }]}>
-                    {item.tags.map((tag, index) => (
-                        <View key={index} style={styles.tag}>
-                            <Text style={styles.tagText}>#{tag}</Text>
-                        </View>
-                    ))}
-                </View>
+                {item.document_remarks && (
+                    <Text style={[styles.remarks, { marginTop: 5 }]}>
+                        💬 {item.document_remarks}
+                    </Text>
+                )}
+
+                <Text style={[styles.uploader, { marginTop: 5 }]}>
+                    👤 Uploaded by: {item.uploaded_by} on {new Date(item.upload_time).toLocaleString()}
+                </Text>
             </View>
 
             <TouchableOpacity
@@ -208,7 +291,6 @@ const FileSearchScreen = ({ navigation }) => {
         </View>
     );
 
-
     return (
         <View style={styles.container}>
             <View style={styles.header}>
@@ -219,8 +301,28 @@ const FileSearchScreen = ({ navigation }) => {
             </View>
 
             <ScrollView>
-
                 <View style={[styles.searchForm, { paddingHorizontal: 28 }]}>
+                    <View style={styles.searchBarContainer}>
+                        <Icon name="search" size={20} color="#666" style={styles.searchIcon} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="Search documents by keyword..."
+                            value={searchText}
+                            onChangeText={setSearchText}
+                            returnKeyType="search"
+                            onSubmitEditing={handleSearch}
+                            placeholderTextColor="#999"
+                        />
+                        {searchText !== '' && (
+                            <TouchableOpacity
+                                style={styles.clearSearchButton}
+                                onPress={() => setSearchText('')}
+                            >
+                                <Icon name="clear" size={20} color="#666" />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
                     <Text style={styles.label}>Category</Text>
                     <View style={styles.pickerContainer}>
                         <TouchableOpacity
@@ -265,7 +367,7 @@ const FileSearchScreen = ({ navigation }) => {
                                 showsHorizontalScrollIndicator={false}
                                 style={styles.minorHeadContainer}
                             >
-                                {minorHeadOptions[majorHead].map((option) => (
+                                {minorHeadOptions[majorHead]?.map((option) => (
                                     <TouchableOpacity
                                         key={option}
                                         style={[
@@ -312,6 +414,26 @@ const FileSearchScreen = ({ navigation }) => {
                             </View>
                         ))}
                     </View>
+
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.suggestionsContainer}
+                    >
+                        {availableTags.map((tag, index) => (
+                            <TouchableOpacity
+                                key={tag.id}
+                                style={[styles.suggestionChip, { marginLeft: index === 0 ? 28 : 5 }]}
+                                onPress={() => {
+                                    if (!tags.includes(tag.name)) {
+                                        setTags([...tags, tag.name]);
+                                    }
+                                }}
+                            >
+                                <Text style={styles.suggestionChipText}>{tag.name}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
 
                     <View style={styles.dateRangeContainer}>
                         <View style={styles.datePickerWrapper}>
@@ -367,7 +489,6 @@ const FileSearchScreen = ({ navigation }) => {
                         </View>
                     </View>
 
-                    {/* Search Button */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 20 }}>
                         <TouchableOpacity
                             style={styles.searchButton}
@@ -387,14 +508,10 @@ const FileSearchScreen = ({ navigation }) => {
                             <Icon name="clear" size={24} color="#fff" />
                         </TouchableOpacity>
                     </View>
-
                 </View>
 
-                <View style={[styles.resultsContainer, { paddingHorizontal: 28 }]}>
+                <View style={[styles.resultsContainer, { paddingHorizontal: 28, marginTop: 20 }]}>
                     <View style={styles.resultsHeader}>
-                        {/* <Text style={styles.resultsTitle}>
-                        Search Results ({searchResults.length})
-                    </Text> */}
                         {searchResults?.length > 0 && (
                             <TouchableOpacity
                                 style={styles.downloadButton}
@@ -407,12 +524,34 @@ const FileSearchScreen = ({ navigation }) => {
                     </View>
 
                     {searchResults?.length > 0 ? (
-                        <FlatList
-                            data={searchResults}
-                            renderItem={renderDocumentItem}
-                            keyExtractor={(item, index) => index.toString()}
-                            contentContainerStyle={styles.resultsList}
-                        />
+                        <>
+                            <FlatList
+                                data={searchResults}
+                                renderItem={renderDocumentItem}
+                                keyExtractor={(item) => item.document_id.toString()}
+                                contentContainerStyle={styles.resultsList}
+                                ListFooterComponent={renderFooter}
+                            />
+
+                            {searchResults.length < totalRecords && (
+                                <TouchableOpacity
+                                    style={styles.loadMoreButton}
+                                    onPress={handleLoadMore}
+                                    disabled={loadingMore}
+                                >
+                                    {loadingMore ? (
+                                        <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <Icon name="arrow-downward" size={18} color="#fff" />
+                                            <Text style={styles.loadMoreButtonText}>
+                                                Load More ({searchResults.length} of {totalRecords})
+                                            </Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        </>
                     ) : (
                         <View style={styles.noResults}>
                             <Icon name="search" size={50} color="#ddd" />
@@ -436,7 +575,6 @@ const styles = StyleSheet.create({
     },
     searchForm: {
         padding: 15,
-        maxHeight: '50%',
     },
     header: {
         backgroundColor: '#6a1b9a',
@@ -445,6 +583,65 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         flexDirection: 'row',
         alignItems: 'center',
+    },
+    searchBarContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        marginVertical: 15,
+        borderWidth: 1,
+        borderColor: '#e0e0e0',
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        height: 45,
+        fontSize: 16,
+        color: '#333',
+    },
+    clearSearchButton: {
+        padding: 8,
+    },
+    suggestionsContainer: {
+        flexDirection: 'row',
+        marginBottom: 15,
+    },
+    suggestionChip: {
+        backgroundColor: '#f0f8ff',
+        borderRadius: 20,
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        marginRight: 8,
+        borderWidth: 1,
+        borderColor: '#add8e6',
+    },
+    suggestionChipText: {
+        color: '#007bff',
+        fontSize: 15,
+    },
+    selectedChipsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginBottom: 15,
+    },
+    selectedChip: {
+        backgroundColor: '#007bff',
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 20,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    selectedChipText: {
+        color: '#fff',
+        marginRight: 8,
+        fontSize: 15,
     },
     backButton: {
         marginRight: 15,
@@ -520,17 +717,38 @@ const styles = StyleSheet.create({
         padding: 10,
         marginLeft: 10,
     },
-    tagAddButtonText: {
+    selectedTags: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        marginTop: 10,
+    },
+    tagChip: {
+        backgroundColor: '#007bff',
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 20,
+        paddingVertical: 6,
+        paddingHorizontal: 10,
+        marginRight: 8,
+        marginBottom: 8,
+    },
+    tagChipText: {
         color: '#fff',
-        fontWeight: 'bold',
+        marginRight: 8,
+        fontSize: 14,
     },
     dateRangeContainer: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 10,
+        marginTop: 10,
+    },
+    datePickerWrapper: {
+        flex: 1,
+        marginRight: 10,
     },
     dateInput: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         backgroundColor: '#fff',
         borderWidth: 1,
@@ -543,11 +761,23 @@ const styles = StyleSheet.create({
         borderRadius: 5,
         padding: 10,
         alignItems: 'center',
-        width: '80%'
+        width: '80%',
+        flexDirection: 'row',
+        justifyContent: 'center',
     },
     searchButtonText: {
         color: '#fff',
         fontWeight: 'bold',
+        marginLeft: 8,
+    },
+    clearButton: {
+        backgroundColor: '#e74c3c',
+        borderRadius: 50,
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 40,
+        height: 40,
+        marginLeft: 20,
     },
     resultsContainer: {
         flex: 1,
@@ -555,14 +785,9 @@ const styles = StyleSheet.create({
     },
     resultsHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         alignItems: 'center',
         marginBottom: 10,
-    },
-    resultsTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#2c3e50',
     },
     downloadButton: {
         flexDirection: 'row',
@@ -577,13 +802,12 @@ const styles = StyleSheet.create({
         marginLeft: 5,
     },
     resultsList: {
-        marginTop: 10,
+        paddingBottom: 20,
     },
     noResults: {
-        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: 50,
+        padding: 40,
     },
     noResultsText: {
         fontSize: 16,
@@ -591,7 +815,6 @@ const styles = StyleSheet.create({
         marginTop: 10,
         textAlign: 'center',
     },
-
     card: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -602,6 +825,11 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         borderWidth: 1,
         borderColor: '#ddd',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2,
     },
     checkbox: {
         marginRight: 12,
@@ -612,51 +840,58 @@ const styles = StyleSheet.create({
     date: {
         fontSize: 14,
         color: '#555',
-        marginBottom: 4,
     },
     category: {
         fontSize: 16,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 6,
     },
-    tagsContainer: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
+    remarks: {
+        fontSize: 14,
+        color: '#666',
+        fontStyle: 'italic',
     },
-    tag: {
-        backgroundColor: '#e0f7fa',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 16,
-        marginRight: 6,
-        marginBottom: 4,
-    },
-    tagText: {
+    uploader: {
         fontSize: 12,
-        color: '#00796b',
+        color: '#888',
     },
     previewButton: {
         padding: 8,
         borderRadius: 8,
         backgroundColor: '#eafaf1',
     },
-    clearButton: {
-        backgroundColor: '#e74c3c',
-        borderRadius: 50,
-        alignItems: 'center',
+    loaderFooter: {
+        flexDirection: 'row',
         justifyContent: 'center',
-        width: 40,
-        height: 40,
-        marginLeft: 20
+        alignItems: 'center',
+        padding: 10,
     },
-
-    clearButtonText: {
+    loadingMoreText: {
+        marginLeft: 10,
+        fontSize: 14,
+        color: '#666',
+    },
+    paginationInfo: {
+        textAlign: 'center',
+        padding: 10,
+        color: '#666',
+        fontSize: 14,
+    },
+    loadMoreButton: {
+        backgroundColor: '#3498db',
+        borderRadius: 8,
+        padding: 12,
+        alignItems: 'center',
+        marginVertical: 15,
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
+    loadMoreButtonText: {
         color: '#fff',
-        fontWeight: '600',
+        fontWeight: 'bold',
+        marginLeft: 8,
+        fontSize: 16,
     },
-
 });
 
 export default FileSearchScreen;

@@ -52,44 +52,26 @@ export const documentService = {
         })
     },
 
-    searchDocuments: async (searchParams) => {
-        try {
-            return [
-                {
-                    id: 1,
-                    title: 'Invoice #12345',
-                    date: '2023-01-15',
-                    tags: ['Invoice', 'Finance'],
-                    major_head: 'Professional',
-                    minor_head: 'Accounts',
-                    file_type: 'pdf',
-                    file_url: 'https://example.com/files/invoice.pdf',
-                },
-                {
-                    id: 2,
-                    title: 'Meeting Notes',
-                    date: '2023-02-20',
-                    tags: ['Notes', 'Meeting'],
-                    major_head: 'Professional',
-                    minor_head: 'HR',
-                    file_type: 'pdf',
-                    file_url: 'https://example.com/files/notes.pdf',
-                },
-                {
-                    id: 3,
-                    title: 'ID Card',
-                    date: '2023-03-10',
-                    tags: ['ID', 'Personal'],
-                    major_head: 'Personal',
-                    minor_head: 'John',
-                    file_type: 'image',
-                    file_url: 'https://example.com/files/id.jpg',
+    searchDocuments: async (data) => {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const userData = await LocalStorage.getData('user_data');
+                let fetchParameter = {
+                    method: 'POST',
+                    body: JSON.stringify(data),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'token': userData?.token
+                    },
                 }
-            ];
-        } catch (error) {
-            console.error('Error searching documents:', error);
-            throw error;
-        }
+                let serverResponse = await fetch(API_URL + `/searchDocumentEntry`, fetchParameter);
+                let response = await serverResponse.json();
+                resolve(response);
+            }
+            catch (error) {
+                reject(error);
+            }
+        })
     },
 
     downloadDocument: async (documentId) => {
