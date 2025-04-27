@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import { AuthContext } from '../contexts/AuthContext';
 import { LocalStorage } from '../utils/LocalStorage';
 import { useIsFocused } from '@react-navigation/native';
+import moment from 'moment';
 
 const HomeScreen = ({ navigation }) => {
     const isFocused = useIsFocused();
@@ -24,8 +25,9 @@ const HomeScreen = ({ navigation }) => {
 
     useEffect(() => {
         const fetchUser = async () => {
-            const name = await LocalStorage.getData('user_name');
-            if (name) setUserName(name);
+            const name = await LocalStorage.getData('user_data');
+
+            if (name) setUserName(name?.user_name);
         };
         fetchUser();
         getDocuments();
@@ -116,9 +118,9 @@ const HomeScreen = ({ navigation }) => {
                     {
                         documents ?
                             <View style={styles.activityCard}>
-                                <Text style={styles.activityTitle}>Uploaded: {documents?.title}</Text>
-                                <Text style={styles.activityDescription}>You uploaded this file to HR folder.</Text>
-                                <Text style={styles.activityTimestamp}>2 hours ago</Text>
+                                <Text style={styles.activityTitle}>Uploaded: {documents?.major_head}</Text>
+                                <Text style={styles.activityDescription}>You uploaded this file to {documents?.minor_head} folder.</Text>
+                                <Text style={styles.activityTimestamp}>{moment(documents?.id).fromNow()} hours ago</Text>
                             </View>
                             :
                             <View style={{}}>

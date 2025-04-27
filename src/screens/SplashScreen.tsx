@@ -34,8 +34,8 @@ const SplashScreen: React.FC<SplashScreenProps> = (props) => {
         ]).start();
 
         const timeout = setTimeout(async () => {
-            const token = await LocalStorage.getData('auth_token');
-            if (token) {
+            const userData = await LocalStorage.getData('user_data');
+            if (userData?.token) {
                 navigation.replace('HomeStack', { screen: 'Home' });
             } else {
                 navigation.replace('AuthStack', { screen: 'Login' });
@@ -47,7 +47,7 @@ const SplashScreen: React.FC<SplashScreenProps> = (props) => {
 
     return (
         <View style={styles.container}>
-            <StatusBar backgroundColor={'6a1b9a'} barStyle={'light-content'} />
+            <StatusBar backgroundColor={'#6a1b9a'} barStyle={'light-content'} />
             <Animated.View style={{ alignItems: 'center', transform: [{ scale }] }}>
                 <Animated.Text style={[styles.text, { opacity }]}>
                     DMS App

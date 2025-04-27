@@ -1,44 +1,55 @@
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LocalStorage } from '../utils/LocalStorage';
 
-const API_URL = 'https://api.example.com';
+const API_URL = 'https://apis.allsoft.co/api/documentManagement';
 
 const getAuthInstance = async () => {
-    const token = await AsyncStorage.getItem('authToken');
-    return axios.create({
-        baseURL: API_URL,
-        headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${token}`,
-        },
-    });
+    const userData = await LocalStorage.getData('user_data');
+    return userData?.token;
 };
 
 export const documentService = {
     uploadDocument: async (formData) => {
-        try {
-            const authInstance = await getAuthInstance();
-            const response = await authInstance.post('/documents/upload', formData);
-            return response.data;
-        } catch (error) {
-            console.error('Error uploading document:', error);
-            throw error;
-        }
+        return new Promise(async (resolve, reject) => {
+            try {
+                const userData = await LocalStorage.getData('user_data');
+                let fetchParameter = {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                        'token': userData?.token
+                    },
+                }
+                let serverResponse = await fetch(API_URL + `/saveDocumentEntry`, fetchParameter);
+                let response = await serverResponse.json();
+                resolve(response);
+            }
+            catch (error) {
+                reject(error);
+            }
+        })
     },
 
     getTags: async () => {
-        try {
-            return [
-                { id: 1, name: 'Invoice' },
-                { id: 2, name: 'Receipt' },
-                { id: 3, name: 'Contract' },
-                { id: 4, name: 'Report' },
-                { id: 5, name: 'Certificate' },
-            ];
-        } catch (error) {
-            console.error('Error fetching tags:', error);
-            throw error;
-        }
+        return new Promise(async (resolve, reject) => {
+            try {
+                const userData = await LocalStorage.getData('user_data');
+                let fetchParameter = {
+                    method: 'POST',
+                    body: JSON.stringify({ term: '' }),
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'token': userData?.token
+                    },
+                }
+                let serverResponse = await fetch(API_URL + `/documentTags`, fetchParameter);
+                let response = await serverResponse.json();
+                resolve(response);
+            }
+            catch (error) {
+                reject(error);
+            }
+        })
     },
 
     searchDocuments: async (searchParams) => {
